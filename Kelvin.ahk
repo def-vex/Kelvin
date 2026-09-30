@@ -80,14 +80,23 @@ DetectHiddenWindows true
 
 iniPath := A_ScriptDir . "\settings.ini"
 
-if !FileExist(iniPath)
+if !FileExist(iniPath) {
+
 	CreateDefaultIni(iniPath)
+
+}
+
+; Synchronize discovered executable paths into the INI file
+
+SyncIniPath(iniPath, "Afterburner", filePathForAfterburnerToRun)
+SyncIniPath(iniPath, "RTSS", filePathForRTSSToRun)
 
 killAfterburnerOnStart := GetInt("KillAfterburnerOnStart", 1, 0)
 checkInterval := GetInt("CheckInterval", 5000, 1000)
 waitForRTSSToOpen := GetInt("WaitForRTSSToOpen", 10, 1)
 forceLaunchRTSS := GetInt("ForceLaunchRTSS", 1, 0)
 maxCloseAttempts := GetInt("MaxCloseAttempts", 6, 1)
+closeIfRiotClient := GetInt("CloseIfRiotClient", 1, 0)
 
 if (killAfterburnerOnStart) && ProcessExist("MSIAfterburner.exe") {
 
@@ -107,14 +116,19 @@ Loop Parse, targetList, "`n", "`r" {
 
 	; Check if empty line between targets and continue to next line if empty
 	; Also ignore comments
-	if (line == "") || (SubStr(line, 1, 1) == ";") 
+	if (line == "") || (SubStr(line, 1, 1) == ";") {
+
 		continue
+
+	}
 
 	parts := StrSplit(line, "=") ; Check if there is an '=' sign
 
 	if (parts.Length != 2) || (Trim(parts[1]) == "") || (Trim(parts[2]) == "") {
+
 		MsgBox("Formatting error in settings.ini:`nInvalid entry:`n`"" . line . "`"", "Kelvin - Config Error", 0x30)
 		ExitApp()
+
 	}
 
 	targets.Push(Trim(parts[2]))
@@ -151,9 +165,13 @@ CheckProcesses() {
 	; Opening VALORANT standalone does also open the Riot Client so it should still exit
 
 	if ProcessExist("Riot Client.exe") {
-		
-		ExitApp()
-	
+
+		if closeIfRiotClient {
+
+				ExitApp()
+			
+		}
+
 	}
 
 	; Initializing global variables
@@ -167,10 +185,14 @@ CheckProcesses() {
 	; Check to see if any apps are running
 
 	for processName in targets {
+
 		if ProcessExist(processName) {
+
 			found := true
 			break
+
 		}
+		
 	}
 
 	abRunning := ProcessExist("MSIAfterburner.exe")
@@ -252,6 +274,8 @@ CreateDefaultIni(path) {
 	ForceLaunchRTSS=1
 	; Close requests Kelvin sends before giving up on MSI Afterburner
 	MaxCloseAttempts=6
+	; Close if Riot Client is detected
+	CloseIfRiotClient=1
 
 	[Paths]
 	; Leave blank so Kelvin does the work for you
@@ -264,6 +288,17 @@ CreateDefaultIni(path) {
 	1=notepad.exe
 	)", path, "UTF-16")
 	
+}
+
+SyncIniPath(path, key, detectedPath) {
+
+	currentVal := IniRead(path, "Paths", key, "")
+	if (currentVal != detectedPath) {
+
+		IniWrite(detectedPath, path, "Paths", key)
+
+	}
+
 }
 
 GetInt(key, default, min) {
