@@ -1,0 +1,5 @@
+*.exe
+settings.ini
+Thumbs.db
+Desktop.ini
+.vscode/
