@@ -1,6 +1,6 @@
 # <img src="kelvinlogo.png" width="32" height="32" valign="middle"> Kelvin
 
-A lightweight background tool that launches MSI Afterburner and RTSS only when you play games, and closes them when you're done.
+A lightweight background tool (around 2 MB of RAM) that launches MSI Afterburner and RTSS only when you play games, and closes them when you're done.
 
 ## Features
 - **Auto Launch & Close:** Starts Afterburner and RTSS when a target game opens, shuts them down when you exit.
