@@ -96,7 +96,7 @@ Loop Parse, targetList, "`n", "`r" {
 		continue
 	}
 
-	parts := StrSplit(line, "=") ; Check if there is an '=' sign
+	parts := StrSplit(line, "=", , 2) ; Check if there is an '=' sign
 
 	if (parts.Length != 2) || (Trim(parts[1]) == "") || (Trim(parts[2]) == "") {
 		MsgBox("Formatting error in settings.ini:`nInvalid entry:`n`"" . line . "`"", "Kelvin - Config Error", 0x30)
@@ -112,84 +112,15 @@ if (targets.Length == 0) {
 	ExitApp()
 }
 
-; State of Kelvin
-launched := false
-launchedAfterburner := false
-rtssWasRunning := false
-closeAttempts := 0
+rules := [
+    Rule("Games -> Afterburner", targets, [
+        Action(filePathForAfterburnerToRun, "window", maxCloseAttempts),
+        Action(filePathForRTSSToRun, "kill")
+    ])
+]
 
-; Run an initial check as the system starts
-CheckProcesses()
-
-; Setting up a timer for checking
-SetTimer(CheckProcesses, checkInterval) ; Every 5 seconds by default
-
-CheckProcesses() {
-	; Just incase Riot does not like AHK executables, Kelvin exits when a Riot Client instance is detected
-	; Opening VALORANT standalone does also open the Riot Client so it should still exit
-	if ProcessExist("Riot Client.exe") {
-		if closeIfRiotClient {
-				ExitApp()
-		}
-	}
-
-	; Initializing global variables
-	global launched, launchedAfterburner, rtssWasRunning, closeAttempts
-
-	; Initializing local variables
-	found := false
-
-	; Check to see if any apps are running
-	for processName in targets {
-		if ProcessExist(processName) {
-			found := true
-			break
-		}		
-	}
-
-	abRunning := ProcessExist("MSIAfterburner.exe")
-
-	if found {
-		closeAttempts := 0
-		if !(abRunning) && !(launched) {
-
-			launched := true
-			launchedAfterburner := true
-			rtssWasRunning := ProcessExist("RTSS.exe")
-			
-			TrayTip("Opening MSI Afterburner...", "Kelvin")
-			Run(filePathForAfterburnerToRun)
-
-			; Check to see if RTSS launched with MSI Afterburner
-			; If it does not launch within 10 seconds (more than typical), attempt to force-launch it
-			if forceLaunchRTSS && filePathForRTSSToRun != "" && !rtssWasRunning && !(ProcessWait("RTSS.exe", waitForRTSSToOpen)) {
-				TrayTip("Opening RivaTuner Statistics Server...", "Kelvin")
-				Run(filePathForRTSSToRun)
-			}
-		}
-
-	} else {
-		launched := false
-
-		; Only exit applications if Kelvin opened them
-		if launchedAfterburner {
-			if abRunning {
-				if closeAttempts < maxCloseAttempts {
-					closeAttempts++
-					TrayTip("Closing MSI Afterburner...", "Kelvin")
-					try WinClose("MSI Afterburner ahk_exe MSIAfterburner.exe")
-				}
-			} else {
-				; Afterburner at this point should be exited so we can move on to RTSS
-				launchedAfterburner := false
-				closeAttempts := 0
-
-				if !(rtssWasRunning) && ProcessExist("RTSS.exe")
-					ProcessClose("RTSS.exe")				
-			}
-		}
-	}
-}
+Tick()
+SetTimer(Tick, checkInterval)
 
 CreateDefaultIni(path) {
 	FileAppend("
