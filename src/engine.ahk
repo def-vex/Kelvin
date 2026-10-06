@@ -4,7 +4,7 @@ class Action {
 
     ; path is the full path to the exe to run
     ; closeMethod uses two ways - either window which is a nice WinClose or kill which is a ProcessClose
-    __New(path, closeMethod := "window", maxCloseAttempts := 6) {
+    __New(path, closeMethod := "window", maxCloseAttempts := 6, windowTitle := "") {
         SplitPath(path, &exeName)
         this.path := path
         this.exeName := exeName
@@ -13,6 +13,7 @@ class Action {
         this.startedByUs := false
         this.closing := false
         this.closeAttempts := 0
+        this.windowTitle := windowTitle ; I shall implement this some day
     }
 
     Start() {
@@ -38,6 +39,15 @@ class Action {
             this.closing := true ; leave the cleaning to Update()
     }
 
+    CloseWindows() {
+        target := (this.windowTitle != "" ? this.windowTitle " " : "") "ahk_exe " this.exeName
+        for hwnd in WinGetList(target) {
+            ; if (WinGetTitle(hwnd) = "")
+                ; continue ; I shall implement this some day
+            try WinClose(hwnd)
+        }
+    }
+
     Update() {
         if !this.closing
             return
@@ -53,7 +63,7 @@ class Action {
         } else if (this.closeAttempts < this.maxCloseAttempts) {
             this.closeAttempts++
             TrayTip("Closing " this.exeName "...", "Kelvin")
-            try WinClose("ahk_exe " this.exeName)
+            this.CloseWindows()
         }
     }
 }
