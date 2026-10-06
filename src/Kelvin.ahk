@@ -4,7 +4,7 @@
 |  \ / ._>| || | || || ' |
 |_\_\\___.|_||__/ |_||_|_|
 
-Repository : github.com/decf-vex/Kelvin
+Repository : github.com/def-vex/Kelvin
 Maintainer : def-vex
 Release    : beta-release
 
@@ -12,6 +12,9 @@ Release    : beta-release
 
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+
+#Include "config.ahk"
+#Include "engine.ahk"
 
 ;@Ahk2Exe-SetProductName Doing something
 ;@Ahk2Exe-SetDescription Kelvin
@@ -21,73 +24,49 @@ A_IconTip := "Kelvin (beta-release)"
 
 ; Make sure Kelvin is running with admin privileges
 ; This is to ensure that MSI Afterburner does not throw a user prompt when Kelvin tries to start it up
-
 if !(A_IsAdmin) {
-	
 	try {
-
 		Run '*RunAs "' . A_ScriptFullPath . '"'
-
 	}
-
 	ExitApp() ; Restart to ensure admin privileges
 }
 
 ; Read registry to find out the install path of MSI Afterburner and the fallback here is just the default location it tends to install to
-
 try {
-	
 	filePathForAfterburnerToRun := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\MSI\Afterburner", "InstallPath")
-
 } catch {
-	
 	filePathForAfterburnerToRun := "C:\Program Files (x86)\MSI Afterburner\MSIAfterburner.exe"
-
 }
 
 ; Read registry to find out the install path of RivaTuner Statistics Server and the fallback here is just the default location it tends to install to
-
 try {
-	
 	filePathForRTSSToRun := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Unwinder\RTSS", "InstallPath")
-
 } catch {
-	
 	filePathForRTSSToRun := "C:\Program Files (x86)\RivaTuner Statistics Server\RTSS.exe"
-
 }
 
 if !(FileExist(filePathForAfterburnerToRun)) {
-
 	MsgBox("MSI Afterburner was not found on this system.", "Kelvin - File Error", 0x10)
 	ExitApp()
-
 }
 
 if !(FileExist(filePathForRTSSToRun)) {
-
 	MsgBox("RivaTuner Statistics Server was not found on this system.", "Kelvin - File Error", 0x10)
 	ExitApp()
-
 }
 
 ; Make sure that Kelvin can see MSI Afterburner and RTSS even if they are in the system tray
-
 DetectHiddenWindows true
 
 ; Initializing settings
 ; In case the settings file is not found, Kelvin falls back to default values
-
 iniPath := A_ScriptDir . "\settings.ini"
 
 if !FileExist(iniPath) {
-
 	CreateDefaultIni(iniPath)
-
 }
 
 ; Synchronize discovered executable paths into the INI file
-
 SyncIniPath(iniPath, "Afterburner", filePathForAfterburnerToRun)
 SyncIniPath(iniPath, "RTSS", filePathForRTSSToRun)
 
@@ -99,110 +78,79 @@ maxCloseAttempts := GetInt("MaxCloseAttempts", 6, 1)
 closeIfRiotClient := GetInt("CloseIfRiotClient", 1, 0)
 
 if (killAfterburnerOnStart) && ProcessExist("MSIAfterburner.exe") {
-
 	TrayTip("Killing MSI Afterburner on startup...", "Kelvin")
 	try WinClose("MSI Afterburner ahk_exe MSIAfterburner.exe")
-
 }
 
 targets := []
 targetList := IniRead(iniPath, "Targets", , "")
 
 ; Populate target applications list from the INI file that was read
-
 Loop Parse, targetList, "`n", "`r" {
-
-	line := Trim(A_LoopField) ; No leading or trailing space characters in the line
+	; No leading or trailing space characters in the line
+	line := Trim(A_LoopField)
 
 	; Check if empty line between targets and continue to next line if empty
 	; Also ignore comments
 	if (line == "") || (SubStr(line, 1, 1) == ";") {
-
 		continue
-
 	}
 
 	parts := StrSplit(line, "=") ; Check if there is an '=' sign
 
 	if (parts.Length != 2) || (Trim(parts[1]) == "") || (Trim(parts[2]) == "") {
-
 		MsgBox("Formatting error in settings.ini:`nInvalid entry:`n`"" . line . "`"", "Kelvin - Config Error", 0x30)
 		ExitApp()
-
 	}
 
 	targets.Push(Trim(parts[2]))
-
 }
 
 ; Check if there were no targets in which case Kelvin does not care and will exit
-
 if (targets.Length == 0) {
-
 	MsgBox("Error in settings.ini:`nNo target processes found under [Targets].", "Kelvin - Config Error", 0x30)
 	ExitApp()
-
 }
 
 ; State of Kelvin
-
 launched := false
 launchedAfterburner := false
 rtssWasRunning := false
 closeAttempts := 0
 
 ; Run an initial check as the system starts
-
 CheckProcesses()
 
 ; Setting up a timer for checking
-
 SetTimer(CheckProcesses, checkInterval) ; Every 5 seconds by default
 
 CheckProcesses() {
-
 	; Just incase Riot does not like AHK executables, Kelvin exits when a Riot Client instance is detected
 	; Opening VALORANT standalone does also open the Riot Client so it should still exit
-
 	if ProcessExist("Riot Client.exe") {
-
 		if closeIfRiotClient {
-
 				ExitApp()
-			
 		}
-
 	}
 
 	; Initializing global variables
-
 	global launched, launchedAfterburner, rtssWasRunning, closeAttempts
 
 	; Initializing local variables
-	
 	found := false
 
 	; Check to see if any apps are running
-
 	for processName in targets {
-
 		if ProcessExist(processName) {
-
 			found := true
 			break
-
-		}
-		
+		}		
 	}
 
 	abRunning := ProcessExist("MSIAfterburner.exe")
 
-	; Running the target app
-
 	if found {
-
 		closeAttempts := 0
-
 		if !(abRunning) && !(launched) {
 
 			launched := true
@@ -214,53 +162,36 @@ CheckProcesses() {
 
 			; Check to see if RTSS launched with MSI Afterburner
 			; If it does not launch within 10 seconds (more than typical), attempt to force-launch it
-
 			if forceLaunchRTSS && filePathForRTSSToRun != "" && !rtssWasRunning && !(ProcessWait("RTSS.exe", waitForRTSSToOpen)) {
-				
 				TrayTip("Opening RivaTuner Statistics Server...", "Kelvin")
 				Run(filePathForRTSSToRun)
-
 			}
 		}
 
 	} else {
-
 		launched := false
 
 		; Only exit applications if Kelvin opened them
-
 		if launchedAfterburner {
-
 			if abRunning {
-
 				if closeAttempts < maxCloseAttempts {
-
 					closeAttempts++
 					TrayTip("Closing MSI Afterburner...", "Kelvin")
 					try WinClose("MSI Afterburner ahk_exe MSIAfterburner.exe")
-
 				}
-
 			} else {
-
 				; Afterburner at this point should be exited so we can move on to RTSS
-
 				launchedAfterburner := false
 				closeAttempts := 0
 
 				if !(rtssWasRunning) && ProcessExist("RTSS.exe")
 					ProcessClose("RTSS.exe")				
-
 			}
-
 		}
-
 	}
-
 }
 
 CreateDefaultIni(path) {
-
 	FileAppend("
 	( LTrim
 	[Settings]
@@ -287,32 +218,21 @@ CreateDefaultIni(path) {
 	; To check your game's specific exe name, open Task Manager and go to details to search for your game
 	1=notepad.exe
 	)", path, "UTF-16")
-	
 }
 
 SyncIniPath(path, key, detectedPath) {
-
 	currentVal := IniRead(path, "Paths", key, "")
 	if (currentVal != detectedPath) {
-
 		IniWrite(detectedPath, path, "Paths", key)
-
 	}
-
 }
 
 GetInt(key, default, min) {
-
 	try {
-
 		value := Integer(IniRead(iniPath, "Settings", key, default))
-
 	} catch {
-
 		value := default
-
 	}
-
+	
 	return Max(value, min)
-
 }
